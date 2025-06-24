@@ -1,0 +1,61 @@
+```{r warning=FALSE}
+# package
+library(ggplot2)
+
+# 1. parameter difinition
+n  <- 10    # beobachtung zahl
+k  <- 7     # Erfolg zahl
+a0 <- 2     # Beta prior alpha
+b0 <- 2     # Beta prior beta
+
+# 2. p network
+p_grid <- seq(0, 1, length.out = 500)
+
+# 3. priori, likelihood, posterior rechnen
+prior      <- dbeta(p_grid, a0, b0)
+likelihood <- dbinom(k, size = n, prob = p_grid)
+likelihood <- likelihood / max(likelihood)
+posterior  <- dbeta(p_grid, a0 + k, b0 + n - k)
+
+# 4.MLE, MAP, erwartungserte von Post rechnen
+mle       <- k / n
+map       <- (a0 + k - 1) / (a0 + b0 + n - 2)
+mean_post <- (a0 + k) / (a0 + b0 + n)
+
+# 5. dataframe erzeugen
+df_figure1 <- data.frame(
+  p = rep(p_grid, 3),
+  density = c(prior, likelihood, posterior),
+  type = factor(rep(c("Prior", "Likelihood", "Posterior"), each = length(p_grid)),
+                levels = c("Prior", "Likelihood", "Posterior"))
+)
+
+# 6. plot und legende notizen
+bayes_plot <- ggplot(df, aes(x = p, y = density, color = type, linetype = type)) +
+  geom_line(size = 0.75) +
+  geom_vline(xintercept = mle, color = "red", linetype = "dashed", size = 0.6) +
+  geom_vline(xintercept = map, color = "#8db1e1", linetype = "solid",  size = 0.6) +
+  geom_vline(xintercept = mean_post, color = "darkblue", linetype = "solid", size = 0.85) +
+  annotate("text", x = mle,       y = max(posterior)*0.08,
+           label = "MLE",       angle = 0, vjust = -0.5, hjust = -0.1) +
+  annotate("text", x = map,       y = max(posterior)*0.12,
+           label = "MAP",       angle = 0, vjust = -0.5, hjust = -0.1) +
+  annotate("text", x = mean_post, y = max(posterior)*0.16,
+           label =  expression(E[p]), angle = 0, vjust = -0.5, hjust = 1.1) +
+  scale_color_manual(values = c("Prior" = "darkgreen",
+                                "Likelihood" = "red",
+                                "Posterior" = "#8db1e1")) +
+  scale_linetype_manual(values = c("Prior" = "solid",
+                                   "Likelihood" = "dashed",
+                                   "Posterior" = "dashed")) +
+  labs(
+    x = expression(p),
+    y = "Dichte / Norm. Likelihood",
+    title = "Prior vs. Likelihood vs. Posterior"
+  ) +
+  theme(legend.position = "right") + 
+  theme_bw(base_size = 14) 
+ggsave("bayes_plot.pdf", width = 8, height = 6, device = cairo_pdf)
+```
+
+
