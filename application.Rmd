@@ -1,0 +1,231 @@
+---
+title: "application"
+author: "Ziqi Xu"
+date: "2025-07-06"
+output: html_document
+---
+
+```{r warning=FALSE}
+# 读入数据
+data_app <- read.csv("wdbc.data", header = FALSE)
+colnames_bc <- c(
+  "ID",
+  "Diagnosis",
+  "radius_mean",
+  "texture_mean",
+  "perimeter_mean",
+  "area_mean",
+  "smoothness_mean",
+  "compactness_mean",
+  "concavity_mean",
+  "concave_points_mean",
+  "symmetry_mean",
+  "fractal_dimension_mean",
+  "radius_se",
+  "texture_se",
+  "perimeter_se",
+  "area_se",
+  "smoothness_se",
+  "compactness_se",
+  "concavity_se",
+  "concave_points_se",
+  "symmetry_se",
+  "fractal_dimension_se",
+  "radius_worst",
+  "texture_worst",
+  "perimeter_worst",
+  "area_worst",
+  "smoothness_worst",
+  "compactness_worst",
+  "concavity_worst",
+  "concave_points_worst",
+  "symmetry_worst",
+  "fractal_dimension_worst"
+)
+
+colnames(data_app) <- colnames_bc
+
+data_app$Diagnosis <- factor(
+  data_app$Diagnosis,
+  levels = c("B", "M"),
+  labels = c("benign", "malignant")
+)
+data_app <- data_app[, -1]
+```
+
+```{r message=FALSE, warning=FALSE}
+# Behalten zwei Spalten bei + y
+data_model <- data_app %>%
+  select(Diagnosis, radius_mean, smoothness_mean)
+
+
+library(brms)
+
+#noninfo
+fit_noninf <- brm(
+  formula = Diagnosis ~ radius_mean + smoothness_mean,
+  data = data_model,
+  family = bernoulli(link = "logit"),
+  prior = prior(normal(0, 100), class = "b"),
+  chains = 4,
+  iter = 4000,
+  warmup = 1000,
+  control = list(adapt_delta = 0.95),
+  seed = 123
+)
+
+#weak
+fit_weak <- brm(
+  formula = Diagnosis ~ radius_mean + smoothness_mean,
+  data = data_model,
+  family = bernoulli(link = "logit"),
+  prior = prior(normal(0, 10), class = "b"),
+  chains = 4,
+  iter = 4000,
+  warmup = 1000,
+  control = list(adapt_delta = 0.95),
+  seed = 123
+)
+
+#heavy_tail
+fit_hier <- brm(
+  formula = Diagnosis ~ radius_mean + smoothness_mean,
+  data = data_model,
+  family = bernoulli(link = "logit"),
+  prior = prior(student_t(3, 0, 5), class = "b"),
+  chains = 4,
+  iter = 4000,
+  warmup = 1000,
+  control = list(adapt_delta = 0.95),
+  seed = 123
+)
+```
+
+```{r}
+library(patchwork)
+# Non-informative
+posterior_noninf <- as.matrix(fit_noninf)
+
+plot_noninf_density <- mcmc_areas(
+  posterior_noninf,
+  pars = c("b_radius_mean", "b_smoothness_mean"),
+  prob = 0.95,
+  point_est = "mean"
+) +
+  ggtitle("Posterior Density - Non-informative")
+
+plot_noninf_trace <- mcmc_trace(
+  posterior_noninf,
+  pars = c("b_radius_mean", "b_smoothness_mean")
+) +
+  ggtitle("Trace Plot - Non-informative")
+
+plot_noninf_intervals <- mcmc_intervals(
+  posterior_noninf,
+  pars = c("b_radius_mean", "b_smoothness_mean")
+) +
+  ggtitle("Posterior Intervals - Non-informative")
+
+plot_noninf_ppcheck <- pp_check(fit_noninf) +
+  ggtitle("Posterior Predictive Check - Non-informative")
+
+posterior_weak <- as.matrix(fit_weak)
+
+plot_weak_density <- mcmc_areas(
+  posterior_weak,
+  pars = c("b_radius_mean", "b_smoothness_mean"),
+  prob = 0.95,
+  point_est = "mean"
+) +
+  ggtitle("Posterior Density - Weakly informative")
+
+plot_weak_trace <- mcmc_trace(
+  posterior_weak,
+  pars = c("b_radius_mean", "b_smoothness_mean")
+) +
+  ggtitle("Trace Plot - Weakly informative")
+
+plot_weak_intervals <- mcmc_intervals(
+  posterior_weak,
+  pars = c("b_radius_mean", "b_smoothness_mean")
+) +
+  ggtitle("Posterior Intervals - Weakly informative")
+
+plot_weak_ppcheck <- pp_check(fit_weak) +
+  ggtitle("Posterior Predictive Check - Weakly informative")
+
+posterior_hier <- as.matrix(fit_hier)
+
+plot_hier_density <- mcmc_areas(
+  posterior_hier,
+  pars = c("b_radius_mean", "b_smoothness_mean"),
+  prob = 0.95,
+  point_est = "mean"
+) +
+  ggtitle("Posterior Density - Heavy-tailed")
+
+plot_hier_trace <- mcmc_trace(
+  posterior_hier,
+  pars = c("b_radius_mean", "b_smoothness_mean")
+) +
+  ggtitle("Trace Plot - Heavy-tailed")
+
+plot_hier_intervals <- mcmc_intervals(
+  posterior_hier,
+  pars = c("b_radius_mean", "b_smoothness_mean")
+) +
+  ggtitle("Posterior Intervals - Heavy-tailed")
+
+plot_hier_ppcheck <- pp_check(fit_hier) +
+  ggtitle("Posterior Predictive Check - Heavy-tailed")
+
+library(patchwork)
+
+combined_density <- plot_noninf_density + plot_weak_density + plot_hier_density +
+  plot_layout(ncol = 3)
+
+ggsave(
+  filename = "Figures/real_density_combined.pdf",
+  plot = combined_density,
+  width = 15,
+  height = 5,
+  dpi = 300
+)
+
+combined_trace <- plot_noninf_trace + plot_weak_trace + plot_hier_trace +
+  plot_layout(ncol = 3)
+
+ggsave(
+  filename = "Figures/real_trace_combined.pdf",
+  plot = combined_trace,
+  width = 15,
+  height = 5,
+  dpi = 300
+)
+
+combined_intervals <- plot_noninf_intervals + plot_weak_intervals + plot_hier_intervals +
+  plot_layout(ncol = 3)
+
+ggsave(
+  filename = "Figures/real_intervals_combined.pdf",
+  plot = combined_intervals,
+  width = 15,
+  height = 5,
+  dpi = 300
+)
+
+combined_ppcheck <- plot_noninf_ppcheck + plot_weak_ppcheck + plot_hier_ppcheck +
+  plot_layout(ncol = 3)
+
+ggsave(
+  filename = "Figures/real_ppcheck_combined.pdf",
+  plot = combined_ppcheck,
+  width = 15,
+  height = 5,
+  dpi = 300
+)
+
+
+```
+
+
